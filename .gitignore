@@ -212,4 +212,8 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
+# Folders
+**/
+!model_fc_5x256_trained/
+
 # End of https://www.toptal.com/developers/gitignore/api/python,jupyternotebooks,images

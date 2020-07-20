@@ -8,9 +8,9 @@ from tqdm import tqdm
 
 LAYERS = 5
 DENSE_LAYER_NEURONS = 256
-GAMES_NUM = 5000
+GAMES_NUM = 10000
 BATCH_SIZE = 128
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.01
 STOP_DECAY_PERCENT = 0.7
 
 OPPONENT_TYPES = {'beginner': 0, 'random': 1}
@@ -31,14 +31,13 @@ if __name__=='__main__':
                         stop_decay_after=GAMES_NUM*STOP_DECAY_PERCENT,
                         epsilon_min=0.01, update_every=100, 
                         layers=LAYERS, neurons=DENSE_LAYER_NEURONS,
-                        trained_model=None,
+                        trained_model=None, architecture='model_fc_v2',
                         input_shape=[BOARD_SIZE**2]
                         # input_shape=(BOARD_SIZE, BOARD_SIZE, 1)
                         )
     
     scores = []
     epsilon_history = []
-    moving_average_acc = []
     
     for i in tqdm(range(GAMES_NUM), ascii=True, unit='game'):
         done = False
@@ -53,11 +52,9 @@ if __name__=='__main__':
             agent.train()
         epsilon_history.append(agent.epsilon)
         
-        # print('Score:', score)
         scores.append(score)
         
         moving_average = np.mean(scores[-100:])
-        moving_average_acc.append(moving_average)
         print('episode: ', i+1, 'score: %.2f' % score, 
               ' average score %.2f' % moving_average,
               ' epsilon %.3f' % agent.epsilon)
@@ -66,11 +63,8 @@ if __name__=='__main__':
         
     agent.save_model()
         
-    filename = f'gomoku_dueling_ddqn_{ATTEMPT_NAME}.png'
-    filename_ma_100 = f'gomoku_dueling_ddqn_100_{ATTEMPT_NAME}.png'
-        
+    img_filename = f'gomoku_dueling_ddqn_ma100_{ATTEMPT_NAME}.png'
+    
     x = [i+1 for i in range(GAMES_NUM)]
     
-    plot_training(x, scores, epsilon_history, filename)    
-    plot_training(x, scores, epsilon_history, filename_ma_100, moving_avg_len=100)
-    # plot_training(x, moving_average_acc, epsilon_history, filename_moving_avg)
+    plot_training(x, scores, epsilon_history, img_filename, OPPONENT, moving_avg_len=100)

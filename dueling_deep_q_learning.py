@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 
+
 class DDQN(Model):
     
     def __init__(self, actions_num, layer1_neurons, layer2_neurons):
@@ -76,6 +77,7 @@ class DDQN_v2(Model):
         A = self.advantage(x)
         
         return A
+
 
 class DDQN_convnet(Model):
     
@@ -158,7 +160,7 @@ class ReplayMemory():
 
         self.states = np.zeros((self.size, *input_shape))
         self.new_states = np.zeros((self.size, *input_shape))
-        self.actions = np.zeros(self.size)
+        self.actions = np.zeros(self.size, dtype=np.int32)
         self.rewards = np.zeros(self.size)
         self.dones = np.zeros(self.size)
         
@@ -184,102 +186,13 @@ class ReplayMemory():
         dones_batch = self.dones[batch_indexes]
         
         return states_batch, actions_batch, rewards_batch, new_states_batch, dones_batch
-    
-    
-class Agent():
-    
-    def __init__(self, learning_rate, discount, actions_num, epsilon, batch_size,
-                 input_shape, epsilon_decay_rate, epsilon_min, memory_size,
-                 update_every, model_filename, layer1_neurons, layer2_neurons):
-        
-        self.action_space = [i for i in range(actions_num)]
-        
-        self.discount = discount
-        self.epsilon = epsilon
-        self.epsilon_decay_rate = epsilon_decay_rate
-        self.epsilon_min = epsilon_min
-        
-        self.update_every = update_every
-        self.batch_size = batch_size
-        
-        self.learn_step_counter = 0
-        
-        self.memory = ReplayMemory(memory_size, input_shape)
-        
-        self.main_model = DDQN(actions_num, layer1_neurons, layer2_neurons)
-        self.target_model = DDQN(actions_num, layer1_neurons, layer2_neurons)
-        
-        self.main_model.compile(optimizer=Adam(learning_rate=learning_rate),
-                                loss='mse')
-        self.target_model.compile(optimizer=Adam(learning_rate=learning_rate),
-                                  loss='mse')
-        
-        self.model_filename = model_filename
-        
-    def store_transition(self, state, action, reward, new_state, done):
-        self.memory.save_transition(state, action, reward, new_state, done)
-        
-    def choose_action(self, state):
-        if np.random.random() < self.epsilon:
-            # TODO: Izbaciti zauzete
-            action = np.random.choice(self.action_space)
-        else:
-            state = np.array([state])
-            actions = self.main_model.get_advantage(state)
-            action = tf.math.argmax(actions, axis=1).numpy()[0]
-            
-        return action
-        
-    def train(self):
-        if self.memory.counter < self.batch_size:
-            return
-        
-        if self.learn_step_counter % self.update_every == 0:
-            # print("Get weigths:", len(self.target_model.get_weights()))
-            print("Get weigths len:", len(self.target_model.get_weights()))
-            print("Get weigths len:", len(self.main_model.get_weights()))
-            self.target_model.set_weights(self.main_model.get_weights())
-        
-        states, actions, rewards, new_states, dones = self.memory.sample(self.batch_size)
-        
-        q_pred = self.main_model(states)
-        q_next = self.target_model(new_states)
-        
-        # q_next = tf.math.reduce_max(q_next, axis=1, keepdims=True).numpy()
-        
-        # q_target = np.copy(q_pred)
-        q_target = q_pred.numpy()
-        
-        max_actions = tf.math.argmax(self.main_model(new_states), axis=1)
-        
-        for i, done in enumerate(dones):
-            # if done:
-            #    q_next[i] = 0
-            
-            # print(q_target.shape)
-            q_target[i, int(actions[i])] = rewards[i] + self.discount*q_next[i, max_actions[i]]*(1 - int(dones[i]))
-            # q_target[i, actions[i]] = rewards[i] + self.discount*q_next[i, max_actions[i]]*(1 - int(dones[i]))
-            # q_target[i, actions[i]] = rewards[i] + self.discount*q_next[i]
-            
-        self.main_model.train_on_batch(states, q_target)
-        
-        # self.epsilon = self.epsilon * self.epsilon_decay_rate if self.epsilon > self.epsilon_min else self.epsilon_min
-        # self.epsilon = self.epsilon - self.epsilon_decay_rate if self.epsilon > self.epsilon_min else self.epsilon_min
-        
-        self.learn_step_counter += 1
-        
-    def save_model(self):
-        self.main_model.save(self.model_filename)
-        
-    def load_model(self):
-        self.main_model = load_model(self.model_file)
 
         
 class GomokuAgent():
     
     def __init__(self, learning_rate, discount, actions_num, epsilon, batch_size,
                  input_shape, stop_decay_after, epsilon_min, memory_size,
-                 update_every, model_filename, layers, neurons,
+                 update_every, model_filename, layers, neurons, architecture,
                  trained_model=None):
     
         self.action_space = [i for i in range(actions_num)]
@@ -298,15 +211,9 @@ class GomokuAgent():
         
         self.memory = ReplayMemory(memory_size, input_shape)
         
-        # self.main_model = DDQN(actions_num, layer1_neurons, layer2_neurons)
-        # self.target_model = DDQN(actions_num, layer1_neurons, layer2_neurons)
-        
-        # self.main_model = make_model('model_fc', actions_num=actions_num, neurons=layer1_neurons)
-        # self.target_model = make_model('model_fc', actions_num=actions_num, neurons=layer1_neurons)
-        
         if trained_model==None:
-            self.main_model = make_model('model_fc_v2', layers=layers, actions_num=actions_num, neurons=neurons)
-            self.target_model = make_model('model_fc_v2', layers=layers, actions_num=actions_num, neurons=neurons)
+            self.main_model = make_model(architecture, layers=layers, actions_num=actions_num, neurons=neurons)
+            self.target_model = make_model(architecture, layers=layers, actions_num=actions_num, neurons=neurons)
         else:
             load_model(trained_model)
             
@@ -331,50 +238,42 @@ class GomokuAgent():
             state = np.array([state])
             actions = self.main_model.get_advantage(state)
             actions = actions.numpy()
-            # print("Actions :", actions)
-            # print("State :", state)
+
             for index, field_value in enumerate(state[0]):
                 if field_value!=0:
                     actions[0][index] = -math.inf
-            # print(actions)
+
             action = tf.math.argmax(actions, axis=1).numpy()[0]
             
         return action
-        
-    def train(self):
-        
-        # print('.', end='')
-        
+    
+    def train(self):    
         if self.memory.counter < self.batch_size:
             return
         
         self.learn_step_counter += 1
         
         if self.learn_step_counter % self.update_every == 0:
-            # print("Get weigths:", self.target_model.get_weights())
-            # print("Get weigths len:", len(self.target_model.get_weights()))
-            # print("Get weigths len:", len(self.main_model.get_weights()))
             self.target_model.set_weights(self.main_model.get_weights())
         
         states, actions, rewards, new_states, dones = self.memory.sample(self.batch_size)
         
-        q_pred = self.main_model(states)
-        q_next = self.target_model(new_states)
+        target_q_values = self.main_model(states).numpy()
+        next_q_values = self.target_model(new_states)
         
-        # q_next = tf.math.reduce_max(q_next, axis=1, keepdims=True).numpy()
+        # max_actions = tf.math.argmax(next_q_values, axis=1)
+        max_actions = np.argmax(next_q_values, axis=1)
         
-        # q_target = np.copy(q_pred)
-        q_target = q_pred.numpy()
+        for i in range(len(states)):
+            if dones[i]:
+                target_q_values[i, actions[i]] = rewards[i]
+            else:
+                # max_next_q = np.max(next_q_values[i])
+                # target_q_values[i, actions[i]] = rewards[i] + self.discount*max_next_q
+                
+                target_q_values[i, actions[i]] = rewards[i] + self.discount*next_q_values[i, max_actions[i]]
         
-        max_actions = tf.math.argmax(self.main_model(new_states), axis=1)
-        
-        for i, done in enumerate(dones):
-            # if done:
-            #    q_next[i] = 0
-            
-            q_target[i, int(actions[i])] = rewards[i] + self.discount*q_next[i, max_actions[i]]*(1 - int(dones[i]))
-            
-        self.main_model.train_on_batch(states, q_target)
+        self.main_model.train_on_batch(states, target_q_values)
         
     def save_model(self):
         self.main_model.save(self.model_filename)
@@ -382,12 +281,14 @@ class GomokuAgent():
     def load_model(self):
         self.main_model = load_model(self.model_file)
     
-def plot_training(x, scores, epsilon_history, filename, lines=None, moving_avg_len=20):
+def plot_training(x, scores, epsilon_history, filename, opponent, moving_avg_len=20):
     fig = plt.figure()
     ax = fig.add_subplot(111, label='1')
     ax2 = fig.add_subplot(111, label='2', frame_on=False)
     
     ax.plot(x, epsilon_history, color='C0')
+    opponent = opponent if opponent=='random' else 'pattern-based'
+    ax.set_title(f"vs opponent with {opponent} tactic")
     ax.set_xlabel('Game', color='C0')
     ax.set_ylabel('Epsilon', color='C0') 
     ax.tick_params(axis='x', colors='C0')
@@ -404,10 +305,6 @@ def plot_training(x, scores, epsilon_history, filename, lines=None, moving_avg_l
     ax2.set_ylabel('Score', color='C1')
     ax2.yaxis.set_label_position('right')
     ax2.tick_params(axis='y', colors='C1')
-    
-    if lines is not None:
-        for line in lines:
-            plt.axvline(x=line)
             
     plt.savefig(filename)
     plt.show()
