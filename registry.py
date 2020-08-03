@@ -7,7 +7,7 @@ register(
     entry_point='gym_gomoku.envs:GomokuEnv',
     kwargs={
         'player_color': 'black',
-        'opponent': 'random', # random policy is the simplest
+        'opponent': 'random',
         'board_size': 9,
     },
     nondeterministic=True,
@@ -18,7 +18,7 @@ register(
     entry_point='gym_gomoku.envs:GomokuEnv',
     kwargs={
         'player_color': 'black',
-        'opponent': 'random', # random policy is the simplest
+        'opponent': 'random',
         'board_size': 19,
     },
     nondeterministic=True,
@@ -30,7 +30,7 @@ register(
     entry_point='gym_gomoku.envs:GomokuEnv',
     kwargs={
         'player_color': 'black',
-        'opponent': 'beginner', # random policy is the simplest
+        'opponent': 'beginner'
         'board_size': 19,
     },
     nondeterministic=True,
