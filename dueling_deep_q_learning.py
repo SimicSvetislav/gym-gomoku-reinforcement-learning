@@ -3,6 +3,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Conv2D, Dropout, MaxPooling2D, Flatten
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers.schedules import PiecewiseConstantDecay
 from tensorflow.keras.models import Model, load_model
 import numpy as np
 import matplotlib.pyplot as plt
@@ -48,10 +49,16 @@ class DDQN_v2(Model):
         self.dense_layers = []
         
         for i in range(layers):
-            self.dense_layers.append(Dense(neurons, activation='relu'))
+            self.dense_layers.append(Dense(neurons, activation='relu', 
+                                           kernel_initializer='random_normal',
+                                           bias_initializer='zeros'))
         
-        self.value = Dense(1, activation=None)
-        self.advantage = Dense(actions_num, activation=None)
+        self.value = Dense(1, activation=None,
+                           kernel_initializer='random_normal',
+                           bias_initializer='zeros')
+        self.advantage = Dense(actions_num, activation=None,
+                           kernel_initializer='random_normal',
+                           bias_initializer='zeros')
         
     def call(self, state):
         
@@ -193,7 +200,9 @@ class GomokuAgent():
     def __init__(self, learning_rate, discount, actions_num, epsilon, batch_size,
                  input_shape, stop_decay_after, epsilon_min, memory_size,
                  update_every, model_filename, layers, neurons, architecture,
-                 trained_model=None):
+                 # lr_decay_rate, lr_decay_steps,
+                 lr_bounds, lr_values,
+                 trained_model=None,):
     
         self.action_space = [i for i in range(actions_num)]
         
@@ -211,16 +220,26 @@ class GomokuAgent():
         
         self.memory = ReplayMemory(memory_size, input_shape)
         
-        if trained_model==None:
-            self.main_model = make_model(architecture, layers=layers, actions_num=actions_num, neurons=neurons)
-            self.target_model = make_model(architecture, layers=layers, actions_num=actions_num, neurons=neurons)
-        else:
-            load_model(trained_model)
-            
-        self.main_model.compile(optimizer=Adam(learning_rate=learning_rate),
+        self.main_model = make_model(architecture, layers=layers, actions_num=actions_num, neurons=neurons)
+        self.target_model = make_model(architecture, layers=layers, actions_num=actions_num, neurons=neurons)
+        
+        lr_schedule = PiecewiseConstantDecay(lr_bounds, lr_values)
+        
+        self.main_model.compile(optimizer=Adam(learning_rate=lr_schedule),
                                 loss='mse')
         self.target_model.compile(optimizer=Adam(learning_rate=learning_rate),
-                                  loss='mse')
+                                loss='mse')
+        
+        self.model_file = trained_model
+        
+        if trained_model!=None:
+            # Da bi nastale tezine mora se jednom pozvati model
+            self.main_model(tf.ones((1, *input_shape)))
+            self.target_model(tf.ones((1, *input_shape)))
+            
+            self.load_trained_model()
+            # self.weights_file = trained_model
+            # elf.load_trained_model()
         
         self.model_filename = model_filename
         
@@ -258,11 +277,12 @@ class GomokuAgent():
         
         states, actions, rewards, new_states, dones = self.memory.sample(self.batch_size)
         
-        target_q_values = self.main_model(states).numpy()
+        predicted_q_values = self.main_model(states).numpy()
         next_q_values = self.target_model(new_states)
         
-        # max_actions = tf.math.argmax(next_q_values, axis=1)
-        max_actions = np.argmax(next_q_values, axis=1)
+        target_q_values = np.copy(predicted_q_values)
+        
+        max_actions = tf.math.argmax(next_q_values, axis=1)
         
         for i in range(len(states)):
             if dones[i]:
@@ -276,10 +296,16 @@ class GomokuAgent():
         self.main_model.train_on_batch(states, target_q_values)
         
     def save_model(self):
-        self.main_model.save(self.model_filename)
+        # self.main_model.save(self.model_filename)
         
-    def load_model(self):
-        self.main_model = load_model(self.model_file)
+        weights = self.main_model.get_weights()
+        np.save(self.model_filename + '_weights', weights)
+        
+    def load_trained_model(self):
+        # self.main_model = load_model(self.model_file)
+        weights = np.load(self.model_file, allow_pickle=True)
+        self.main_model.set_weights(weights)
+        self.target_model.set_weights(weights)
     
 def plot_training(x, scores, epsilon_history, filename, opponent, moving_avg_len=20):
     fig = plt.figure()

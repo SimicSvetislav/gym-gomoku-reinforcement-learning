@@ -45,5 +45,5 @@ while True:
             print('You won!')
         elif reward == -1.0:
             print('You lost!')
-        
+            
         break

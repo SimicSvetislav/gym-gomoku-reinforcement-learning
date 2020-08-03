@@ -214,6 +214,9 @@ dmypy.json
 
 # Folders
 **/
+**.npy
+
 !model_fc_5x256_trained/
+!trained_weights.npy
 
 # End of https://www.toptal.com/developers/gitignore/api/python,jupyternotebooks,images
